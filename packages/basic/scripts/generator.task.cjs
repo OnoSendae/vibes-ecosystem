@@ -33,10 +33,13 @@ function readStdin() {
 }
 
 function loadTemplate() {
-    const templatePath = path.join(__dirname, '..', 'structure', 'templates', 'template.task.md');
+    const installedPath = path.join(__dirname, '..', 'templates', 'template.task.md');
+    const devPath = path.join(__dirname, '..', 'structure', 'templates', 'template.task.md');
+
+    const templatePath = fs.existsSync(installedPath) ? installedPath : devPath;
 
     if (!fs.existsSync(templatePath)) {
-        throw new Error(`Template not found: ${templatePath}`);
+        throw new Error(`Template not found. Tried:\n  - ${installedPath}\n  - ${devPath}`);
     }
 
     return fs.readFileSync(templatePath, 'utf8');
@@ -114,7 +117,7 @@ function generateTasks(data) {
     const { metadata, tasks } = data;
     const template = loadTemplate();
 
-    const tasksDir = path.join(__dirname, '..', 'tasks', metadata.featureId);
+    const tasksDir = path.join(process.cwd(), 'vibes', 'tasks', metadata.featureId);
     ensureDir(tasksDir);
 
     const created = [];
@@ -139,7 +142,7 @@ function generateTasks(data) {
 
             created.push({
                 taskId: `${metadata.featureId}-${String(task.number).padStart(3, '0')}`,
-                file: path.relative(path.join(__dirname, '..', '..'), filePath),
+                file: path.relative(process.cwd(), filePath),
                 priority: task.priority,
                 category: task.category
             });

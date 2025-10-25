@@ -5,7 +5,7 @@ import chalk from 'chalk';
 import ora from 'ora';
 import { installFromNpm } from '../installers/npm-installer.js';
 import { installFromGitHub, type VibeManifest } from '../installers/github-installer.js';
-import { getVibesHome, getVibePackageDir } from '../utils/symlink-manager.js';
+import { createSymlink, getVibesHome, getVibePackageDir } from '../utils/symlink-manager.js';
 import { ConflictDetector } from '../stash/conflict-detector.js';
 import { ConflictResolver } from '../stash/conflict-resolver.js';
 import { StashManager } from '../stash/stash-manager.js';
@@ -34,6 +34,11 @@ async function loadGlobalManifest(): Promise<GlobalManifest | null> {
 
     const content = await fs.readFile(manifestPath, 'utf-8');
     return JSON.parse(content) as GlobalManifest;
+}
+
+async function saveGlobalManifest(manifest: GlobalManifest): Promise<void> {
+    const manifestPath = path.join(getVibesHome(), 'vibes.json');
+    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2));
 }
 
 function detectCurrentVersion(_packageName: string, manifest: GlobalManifest, pkgName: string): string | null {
@@ -65,13 +70,13 @@ export async function updateCommand(
     } = {}
 ): Promise<void> {
     const projectRoot = path.resolve(process.cwd());
-    
+
     if (isCriticalSystemDirectory(projectRoot)) {
         console.error(chalk.red(`❌ Cannot update in critical system directory: ${projectRoot}`));
         console.error(chalk.yellow('Please run from a safe project directory.'));
         throw new Error(`Update blocked: critical system directory`);
     }
-    
+
     const spinner = ora('Updating vibe...').start();
 
     try {
@@ -131,6 +136,8 @@ export async function updateCommand(
             return;
         }
 
+        let shouldForceOverwrite = false;
+
         if (conflicts.length > 0) {
             spinner.stop();
 
@@ -139,6 +146,13 @@ export async function updateCommand(
 
             if (resolution === 'cancel') {
                 throw new Error('Update cancelled by user');
+            }
+
+            if (resolution === 'overwrite') {
+                console.log('');
+                console.log(chalk.yellow('⚠️  Overwriting files without backup...'));
+                console.log('');
+                shouldForceOverwrite = true;
             }
 
             if (resolution === 'stash-and-overwrite') {
@@ -159,9 +173,47 @@ export async function updateCommand(
                 console.log(chalk.gray(`  Version: ${currentVersion} → ${vibeManifest.version}`));
                 console.log(chalk.gray(`  To restore: npx vibe-devtools stash apply ${stashId}`));
                 console.log('');
+                shouldForceOverwrite = true;
             }
 
             spinner.start('Updating files...');
+        }
+
+        const projectSymlinks: Record<string, string> = {};
+
+        for (const [destination, source] of Object.entries(vibeManifest.symlinks)) {
+            const sourcePath = path.join(vibeDir, source);
+            const destPath = path.join(projectRoot, destination);
+
+            if (!existsSync(sourcePath)) {
+                console.warn(chalk.yellow(`Warning: Source path does not exist: ${sourcePath}`));
+                continue;
+            }
+
+            try {
+                await createSymlink(sourcePath, destPath, {
+                    force: shouldForceOverwrite,
+                    type: 'dir',
+                    fallbackCopy: true
+                });
+
+                projectSymlinks[destPath] = sourcePath;
+            } catch (error) {
+                console.warn(chalk.yellow(`Warning: Failed to create symlink: ${(error as Error).message}`));
+            }
+        }
+
+        spinner.text = 'Updating manifest...';
+
+        const globalManifest = await loadGlobalManifest();
+        if (globalManifest) {
+            globalManifest.installedVibes[packageName] = {
+                version: vibeManifest.version,
+                source: packageName,
+                installedAt: new Date().toISOString(),
+                symlinks: projectSymlinks
+            };
+            await saveGlobalManifest(globalManifest);
         }
 
         spinner.succeed(chalk.green('Vibe updated successfully!'));

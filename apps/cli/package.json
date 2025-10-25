@@ -16,6 +16,13 @@
         "dev": "tsc --watch",
         "start": "node dist/index.js",
         "test": "vitest",
+        "test:stash": "bash __tests__/scripts/run-all-tests.sh",
+        "test:basic": "vitest run __tests__/cases/basic/",
+        "test:edge": "vitest run __tests__/cases/edge-cases/",
+        "test:integration": "vitest run __tests__/cases/integration/",
+        "test:watch": "vitest watch",
+        "test:coverage": "vitest run --coverage",
+        "test:report": "tsx __tests__/scripts/generate-report.ts",
         "lint": "eslint src/"
     },
     "keywords": [

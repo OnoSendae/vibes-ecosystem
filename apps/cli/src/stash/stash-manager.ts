@@ -49,6 +49,34 @@ export class StashManager {
         }
     }
 
+    /**
+     * Creates a new stash with the provided files
+     * 
+     * @param files - Map of source file paths to stash (key and value are same path)
+     * @param metadata - Partial metadata for the stash (reason, package, version_old, version_new)
+     * @returns The stash ID (incrementing number starting from 0)
+     * 
+     * @remarks
+     * This method COPIES files to the stash directory but does NOT delete the original files.
+     * Deletion of original files is the responsibility of the caller.
+     * 
+     * Typically, callers (install.ts, update.ts) use createSymlink() with force: true to 
+     * overwrite local files after stashing. This separation of concerns allows:
+     * - StashManager to focus on backup/restore logic
+     * - Caller to control when and how files are replaced
+     * - Manual stash operations (stash save) to preserve original files
+     * 
+     * @example
+     * const filesToStash = new Map([
+     *   ['vibes/configs/constitution.md', 'vibes/configs/constitution.md']
+     * ]);
+     * const stashId = await stashManager.create(filesToStash, {
+     *   reason: 'install',
+     *   package: '@vibe-devtools/basic@1.0.0'
+     * });
+     * // Files are copied to ~/.vibes/stash/stash-N/ but originals remain
+     * // Caller then uses createSymlink({ force: true }) to replace originals
+     */
     async create(
         files: Map<string, string>,
         metadata: Partial<StashMetadata>

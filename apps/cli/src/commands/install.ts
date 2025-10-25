@@ -93,12 +93,21 @@ async function createVibeSymlinks(
         vibeDir
     );
 
+    let shouldForceOverwrite = false;
+
     if (conflicts.length > 0 && !options.dryRun) {
         const resolver = new ConflictResolver();
         const resolution = await resolver.prompt(conflicts);
 
         if (resolution === 'cancel') {
             throw new Error('Installation cancelled by user');
+        }
+
+        if (resolution === 'overwrite') {
+            console.log('');
+            console.log(chalk.yellow('⚠️  Overwriting files without backup...'));
+            console.log('');
+            shouldForceOverwrite = true;
         }
 
         if (resolution === 'stash-and-overwrite') {
@@ -117,6 +126,7 @@ async function createVibeSymlinks(
             console.log(chalk.green(`✓ Stash created: stash{${stashId}}`));
             console.log(chalk.gray(`  To restore: npx vibe-devtools stash apply ${stashId}`));
             console.log('');
+            shouldForceOverwrite = true;
         }
     }
 
@@ -141,7 +151,7 @@ async function createVibeSymlinks(
 
         try {
             await createSymlink(sourcePath, destPath, {
-                force: true,
+                force: shouldForceOverwrite,
                 type: 'dir',
                 fallbackCopy: true
             });
@@ -160,13 +170,13 @@ export async function installCommand(
     options: { conflict?: string; agent?: string; dryRun?: boolean } = {}
 ): Promise<void> {
     const projectRoot = path.resolve(process.cwd());
-    
+
     if (isCriticalSystemDirectory(projectRoot)) {
         console.error(chalk.red(`❌ Cannot install in critical system directory: ${projectRoot}`));
         console.error(chalk.yellow('Please run from a safe project directory.'));
         throw new Error(`Installation blocked: critical system directory`);
     }
-    
+
     const spinner = ora('Installing vibe...').start();
 
     try {

@@ -1,0 +1,9 @@
+{
+    "name": "test-vibe",
+    "version": "2.0.0",
+    "description": "Test vibe package v2 for stash testing (updated)",
+    "symlinks": {
+        ".cursor/commands": ".cursor/commands",
+        ".cursor/rules": ".cursor/rules"
+    }
+}
